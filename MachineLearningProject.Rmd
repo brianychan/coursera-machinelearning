@@ -1,0 +1,74 @@
+---
+title: "Machine Learning Project"
+author: "Brian Chan"
+date: "November 23, 2014"
+output: html_document
+required packages: caret
+---
+
+## Machine Learning - Fitness Tracking
+
+With the proliferation of wearable fitness trackers comes an enormous amount of easily accessible data on movement and activity. With this exercise, we are trying to determine the quality of an individual's exercise (specifically, a Unilateral Dumbbell Biceps Curl) based on their movement data. For more details on the data go to: <http://groupware.les.inf.puc-rio.br/har>.
+
+First, we load the training and test data. The data contains a mix of motion data from sensors located on the arm, forearm, belt, and dumbbell. The training data has 19,622 observations, while the final testing data contains 20 observations for which we will try to predict 'classe'.
+
+### Classe Categories
+* A: Bicep Curl exactly according to specification
+* B: Throwing the elbows to the front
+* C: Lifting the dumbbell only halfway
+* D: Lowering the dumbbell only halfway
+* E: Throwing the hips to the front
+
+```{r}
+library(caret)
+##Load Training Data
+trainingdata<-read.csv("~/Documents/Learning/Coursera/machinelearning/predictionproject/pml-training.csv", 
+                       header=TRUE,na.strings="NA")
+##Load Testing Data
+testingdata<-read.csv("~/Documents/Learning/Coursera/machinelearning/predictionproject/pml-testing.csv", 
+                       header=TRUE,na.strings="NA")
+```
+
+In the exploratory phase, we do some plotting, while coloring by classe in order to try to uncover some details about the underlying data. 
+
+There appears to be a number of columns that contain a lot of NA's and very little usable data. `nearZeroVar` allows us to identify columns of data with low variance, and we can transform the data to remove those columns. This still leaves us with a lot of columns with mostly missing values. So we will also transform the training data to keep only columns with more than half the rows populated with data. 
+
+```{r}
+nearzerovar <- nearZeroVar(trainingdata,freqCut=200/5,saveMetrics=FALSE)
+cleantrainingdata <- trainingdata[,-nearzerovar]
+cleantrainingdata<-cleantrainingdata[,colSums(is.na(cleantrainingdata)) < .5*nrow(cleantrainingdata)]
+```
+
+In order to cross-validate, we will need to split our training set into a subset of training and testing sets.
+
+```{r}
+inTrain <- createDataPartition(y=cleantrainingdata$classe,p=0.8,list=FALSE)
+SubTrain <- cleantrainingdata[inTrain,]
+SubTest <- cleantrainingdata[-inTrain,]
+```
+
+We are trying to predict categorical observations of the individual's exercise classe, so the machine learning method we will use is classification trees.
+
+```{r}
+set.seed(123)
+modFit<-train(classe ~ .,method="rpart",data=SubTrain)
+modFit
+```
+
+We then use the `predict` function to apply our model to our test set, to see how well our model works.
+
+```{r}
+pred <- predict(modFit,SubTest); SubTest$predRight <- pred==SubTest$classe
+table(pred,SubTest$classe)
+```
+
+Our model tests well for some of the classe; however, it seems to struggle with C and D. The accuracy of our test was 0.66. Our model accuracy was 0.736 with an SD of 0.089, so our test falls in line. Our out-of-sample accuracy would likely follow suit.
+
+Finally, we use our model to predict the classe on our original test set of 20 observations.
+
+```{r}
+finalPrediction <- predict(modFit,testingdata)
+finalPrediction
+```
+
+Oh boy...
